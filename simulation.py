@@ -16,7 +16,7 @@ class DiceSimulator:
             roll = [random.randint(1, faces) for _ in range(num_dice)]
             results.append(roll)
         return results
-      @staticmethod
+    @staticmethod
     def create_simulation_figure(rolls: List[List[int]], faces: int, dark_mode: bool = False) -> Tuple[plt.Figure, Dict]:
         """
         Create a figure for simulated dice rolls and return fairness statistics

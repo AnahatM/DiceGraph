@@ -159,7 +159,7 @@ class DiceSimulatorTab:
             
             # Show simulation results
             self.show_simulation_results(simulated_rolls, faces)
-              self.status_var.set(f"Simulation complete: {num_rolls} rolls of {num_dice} {faces}-sided dice")
+            self.status_var.set(f"Simulation complete: {num_rolls} rolls of {num_dice} {faces}-sided dice")
             
         except ValueError as e:
             messagebox.showerror("Error", str(e))

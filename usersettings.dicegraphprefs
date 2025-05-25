@@ -1,0 +1,7 @@
+{
+  "dark_mode": true,
+  "default_faces": 6,
+  "window_width": 800,
+  "window_height": 600,
+  "statistical_alpha": 0.05
+}

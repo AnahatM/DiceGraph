@@ -14,15 +14,15 @@ def setup_styles():
 def main():
     """Main entry point for the application"""
     root = tk.Tk()
-    sv_ttk.set_theme("light")  # Set default theme to light using Sun Valley theme
+    sv_ttk.set_theme("dark")  # Set default theme to light using Sun Valley theme
     root.title("Dice Tracker")
     root.minsize(800, 600)
     
     # Setup styles
     setup_styles()
-    
-    # Create app
+      # Create app
     app = DiceTrackerApp(root)
+    app.setup_ui()
     
     # Run the application
     root.mainloop()
