@@ -2,6 +2,9 @@
 
 A comprehensive tool for tracking, analyzing, and simulating dice rolls. Use this application to check if your dice are fair, visualize roll distributions, and simulate large numbers of dice rolls.
 
+| ![](assets/DiceGraph-Screenshot-1) | ![](assets/DiceGraph-Screenshot-2.png) |
+| ---------------------------------- | -------------------------------------- |
+
 ## Features
 
 - **Dice Tracking**: Track rolls for single or multiple dice
