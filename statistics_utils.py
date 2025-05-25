@@ -68,6 +68,38 @@ def interpret_chi_square_result(p_value: float, alpha: float = 0.05) -> Dict[str
     
     return result
 
+def check_sample_size_validity(observed: List[int], num_categories: int) -> Dict[str, Union[bool, str, int]]:
+    """
+    Check if the sample size meets the minimum requirements for chi-square test.
+    
+    Args:
+        observed: List of observed frequencies (counts of each face)
+        num_categories: Number of categories (faces on the dice)
+        
+    Returns:
+        Dictionary with validity information
+    """
+    total = sum(observed)
+    
+    # Rule of thumb for chi-square: expected frequency in each category should be at least 5
+    min_expected = 5
+    min_total = min_expected * num_categories
+    
+    result = {
+        "valid": total >= min_total,
+        "total": total,
+        "min_required": min_total,
+        "message": ""
+    }
+    
+    if total < min_total:
+        result["message"] = (
+            f"Not enough data for reliable fairness test. "
+            f"Need at least {min_total} rolls (currently have {total})."
+        )
+    
+    return result
+
 def get_dice_fairness(rolls: List[Union[int, List[int]]], num_faces: int, alpha: float = 0.05) -> Dict[str, Union[str, float, Dict]]:
     """
     Analyze dice rolls for fairness.
@@ -90,12 +122,24 @@ def get_dice_fairness(rolls: List[Union[int, List[int]]], num_faces: int, alpha:
     counts = Counter(flat_rolls)
     observed = [counts.get(i, 0) for i in range(1, num_faces + 1)]
     
-    # Perform chi-square test
-    chi2_stat, p_value = chi_square_test(observed)
+    # Check if we have enough data for a valid test
+    sample_validity = check_sample_size_validity(observed, num_faces)
     
-    # Interpret results
-    fairness = interpret_chi_square_result(p_value, alpha)
-    fairness['chi2_stat'] = chi2_stat
+    # Perform chi-square test only if we have enough data
+    if sample_validity["valid"]:
+        chi2_stat, p_value = chi_square_test(observed)
+        fairness = interpret_chi_square_result(p_value, alpha)
+        fairness['chi2_stat'] = chi2_stat
+    else:
+        # Not enough data for valid test
+        fairness = {
+            "p_value": None,
+            "alpha": alpha,
+            "is_fair": None,  # We don't know if it's fair or not
+            "conclusion": sample_validity["message"],
+            "significance": "Insufficient data for statistical inference",
+            "chi2_stat": None
+        }
     
     # Add additional stats
     total_rolls = len(flat_rolls)
@@ -107,4 +151,5 @@ def get_dice_fairness(rolls: List[Union[int, List[int]]], num_faces: int, alpha:
         "total_rolls": total_rolls,
         "face_counts": counts,
         "face_percentages": face_percentages,
+        "sample_validity": sample_validity
     }

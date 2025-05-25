@@ -13,11 +13,12 @@ import os
 from dice_manager import DiceManager
 from file_utils import (
     get_file_path, log_single_roll, log_multiple_rolls,
-    read_single_rolls, read_multiple_rolls, reset_file,
+    read_single_rolls, read_multiple_rolls, reset_file, delete_file,
     get_available_dice_sets, SINGLE_DICE_DIR, MULTIPLE_DICE_DIR
 )
 import user_preferences as prefs
-from ui_components import SetSelectionDialog
+from ui_components import SetSelectionDialog, StatsDialog
+from statistics_utils import get_dice_fairness
 
 class DiceRollerTab:
     """Class to manage the dice roller tab in the application"""
@@ -46,6 +47,9 @@ class DiceRollerTab:
         self.button_vars = {}
         self.percent_vars = {}
         self.dice_buttons = []
+        
+        # Track fairness statistics
+        self.last_fairness_stats = None
         
         # Setup the UI
         self.setup_ui()
@@ -95,8 +99,17 @@ class DiceRollerTab:
         # Status label
         ttk.Label(status_frame, textvariable=self.status_var).pack(pady=5)
         
+        # Data management buttons
+        data_buttons_frame = ttk.Frame(status_frame)
+        data_buttons_frame.pack(fill=tk.X, pady=5)
+        
         # Reset button 
-        ttk.Button(status_frame, text="Reset Data", command=self.reset_data, style='Accent.TButton').pack(pady=5)
+        ttk.Button(data_buttons_frame, text="Reset Data", command=self.reset_data, 
+                  style='Accent.TButton').pack(side=tk.LEFT, pady=5, padx=5)
+        
+        # Statistics button
+        ttk.Button(data_buttons_frame, text="Show Statistics", 
+                  command=self.show_statistics).pack(side=tk.LEFT, pady=5, padx=5)
         
         # Total rolls
         ttk.Label(status_frame, textvariable=self.total_var, font=("Arial", 10, "bold")).pack(pady=5)
@@ -232,10 +245,21 @@ class DiceRollerTab:
             num_dice = self.dice_manager.current_num_dice
             file_path = get_file_path(name, num_dice)
             
-            reset_file(file_path)
+            # Delete the file instead of just clearing it
+            delete_file(file_path)
             self.status_var.set("Data reset!")
             self.dice_manager.current_roll = []
+            self.last_fairness_stats = None
             self.show_graph()
+    
+    def show_statistics(self):
+        """Show detailed statistical analysis of the dice rolls"""
+        if not self.last_fairness_stats:
+            messagebox.showwarning("Statistics", "No roll data available. Roll some dice first.")
+            return
+            
+        # Show statistics dialog
+        StatsDialog(self.parent.master, "Dice Statistics Analysis", self.last_fairness_stats)
     
     def load_dice_set(self):
         """Load a dice set from saved data"""
@@ -282,6 +306,12 @@ class DiceRollerTab:
         if num_dice == 1:
             # Single die graph
             rolls = read_single_rolls(file_path)
+            
+            # Get fairness statistics
+            alpha = prefs.get_preference('statistical_alpha', 0.05)
+            self.last_fairness_stats = get_dice_fairness(rolls, faces, alpha) if rolls else None
+            
+            # Get dice statistics
             counts, total, percentages = self.dice_manager.calculate_statistics(rolls)
             
             # Update total and button counts
@@ -302,6 +332,30 @@ class DiceRollerTab:
                 ax.text(bar.get_x() + bar.get_width()/2., height + 0.1,
                         f'{percent:.1f}%', ha='center', va='bottom', 
                         rotation=0, fontsize=8, color=text_color)
+                        
+            # Add fairness indicator if we have enough data
+            if self.last_fairness_stats and 'sample_validity' in self.last_fairness_stats:
+                validity = self.last_fairness_stats['sample_validity']
+                if validity['valid']:
+                    fairness = self.last_fairness_stats['fairness_test']
+                    is_fair = fairness.get('is_fair', None)
+                    
+                    if is_fair is not None:
+                        color = 'green' if is_fair else 'red'
+                        if dark_mode:
+                            color = '#66ff66' if is_fair else '#ff6666'
+                        
+                        ax.text(0.5, 0.95, "FAIR" if is_fair else "NOT FAIR",
+                               transform=ax.transAxes, ha='center', va='top',
+                               color=color, fontsize=12, fontweight='bold')
+                        
+                        ax.text(0.5, 0.90, f"p={fairness.get('p_value', 0):.3f}",
+                               transform=ax.transAxes, ha='center', va='top',
+                               color=text_color, fontsize=10)
+                else:
+                    ax.text(0.5, 0.95, f"Need {validity['min_required']} rolls for fairness test",
+                           transform=ax.transAxes, ha='center', va='top',
+                           color='orange', fontsize=10)
             
             ax.set_xlabel('Dice Value', color=text_color)
             ax.set_ylabel('Count', color=text_color)
@@ -316,6 +370,15 @@ class DiceRollerTab:
         else:
             # Multiple dice graph
             rolls = read_multiple_rolls(file_path)
+            
+            # Get fairness statistics
+            if rolls:
+                alpha = prefs.get_preference('statistical_alpha', 0.05)
+                flat_rolls = [val for roll in rolls for val in roll]
+                self.last_fairness_stats = get_dice_fairness(flat_rolls, faces, alpha)
+            else:
+                self.last_fairness_stats = None
+            
             counts, total, percentages, position_stats = self.dice_manager.calculate_multi_statistics(rolls, faces)
             
             # Update total
@@ -339,6 +402,27 @@ class DiceRollerTab:
                     values = [counts.get(face, 0) for face in face_values]
                     ax1.bar([str(f) for f in face_values], values, color=bar_color)
                     ax1.set_title('Overall Distribution', color=text_color)
+                    
+                    # Add fairness indicator if we have enough data
+                    if self.last_fairness_stats and 'sample_validity' in self.last_fairness_stats:
+                        validity = self.last_fairness_stats['sample_validity']
+                        if validity['valid']:
+                            fairness = self.last_fairness_stats['fairness_test']
+                            is_fair = fairness.get('is_fair', None)
+                            
+                            if is_fair is not None:
+                                color = 'green' if is_fair else 'red'
+                                if dark_mode:
+                                    color = '#66ff66' if is_fair else '#ff6666'
+                                
+                                ax1.text(0.5, 0.95, "FAIR" if is_fair else "NOT FAIR",
+                                       transform=ax1.transAxes, ha='center', va='top',
+                                       color=color, fontsize=10, fontweight='bold')
+                        else:
+                            ax1.text(0.5, 0.95, f"Need more rolls for fairness test",
+                                   transform=ax1.transAxes, ha='center', va='top',
+                                   color='orange', fontsize=8)
+                    
                     ax1.tick_params(axis='x', rotation=45, colors=text_color)
                     ax1.tick_params(axis='y', colors=text_color)
                     ax1.spines['bottom'].set_color(text_color)
@@ -367,6 +451,27 @@ class DiceRollerTab:
                     values = [counts.get(face, 0) for face in face_values]
                     ax1.bar([str(f) for f in face_values], values, color=bar_color)
                     ax1.set_title('Overall Distribution', color=text_color)
+                    
+                    # Add fairness indicator if we have enough data
+                    if self.last_fairness_stats and 'sample_validity' in self.last_fairness_stats:
+                        validity = self.last_fairness_stats['sample_validity']
+                        if validity['valid']:
+                            fairness = self.last_fairness_stats['fairness_test']
+                            is_fair = fairness.get('is_fair', None)
+                            
+                            if is_fair is not None:
+                                color = 'green' if is_fair else 'red'
+                                if dark_mode:
+                                    color = '#66ff66' if is_fair else '#ff6666'
+                                
+                                ax1.text(0.5, 0.95, "FAIR" if is_fair else "NOT FAIR",
+                                       transform=ax1.transAxes, ha='center', va='top',
+                                       color=color, fontsize=10, fontweight='bold')
+                        else:
+                            ax1.text(0.5, 0.95, f"Need more rolls for fairness test",
+                                   transform=ax1.transAxes, ha='center', va='top',
+                                   color='orange', fontsize=8)
+                    
                     ax1.tick_params(axis='x', rotation=45, colors=text_color)
                     ax1.tick_params(axis='y', colors=text_color)
                     ax1.spines['bottom'].set_color(text_color)

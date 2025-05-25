@@ -77,6 +77,16 @@ def reset_file(file_path):
     with open(file_path, 'w') as f:
         pass
 
+def delete_file(file_path):
+    """Delete a file if it exists"""
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            return True
+        return False
+    except Exception:
+        return False
+
 def get_available_dice_sets(directory):
     """Get a list of available dice sets from a directory"""
     if not os.path.exists(directory):

@@ -11,7 +11,7 @@ import os
 
 from dice_manager import DiceManager
 from file_utils import (
-    get_file_path, log_single_roll, log_multiple_rolls, reset_file,
+    get_file_path, log_single_roll, log_multiple_rolls, reset_file, delete_file,
     get_simulation_file_path, get_available_simulations, SIMULATION_DIR
 )
 from simulation import DiceSimulator
@@ -203,12 +203,22 @@ class DiceSimulatorTab:
             self.show_simulation_results(rolls, selected_sim['faces'])
             
             self.status_var.set(f"Loaded simulation: {selected_sim['num_rolls']} rolls of "
-                               f"{selected_sim['num_dice']} {selected_sim['faces']}-sided dice")
+                             f"{selected_sim['num_dice']} {selected_sim['faces']}-sided dice")
     
     def reset_simulation(self):
         """Reset the simulation tab and clear results"""
         if self.last_simulation and messagebox.askyesno("Confirm Reset", 
                                                     "Are you sure you want to clear the current simulation results?"):
+            # Delete the simulation file if it exists
+            num_dice = self.sim_num_dice.get()
+            faces = self.sim_faces.get()
+            num_rolls = self.sim_num_rolls.get()
+            name = self.sim_name.get().strip()
+            
+            if name:
+                file_path = get_simulation_file_path(name, num_dice, faces, num_rolls)
+                delete_file(file_path)
+            
             # Clear the graph
             for widget in self.sim_graph_container.winfo_children():
                 widget.destroy()
