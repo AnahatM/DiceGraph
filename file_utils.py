@@ -1,15 +1,19 @@
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import List, Optional
 
 # Constants for file paths
 SINGLE_DICE_DIR = "SingleDiceResults"
 MULTIPLE_DICE_DIR = "MultipleDiceResults"
+SIMULATION_DIR = "SimulationResults"
+FILE_EXTENSION = "dicegraph"  # Using .dicegraph extension for all data files
 
 def ensure_directories():
     """Ensure that the necessary directories exist"""
     os.makedirs(SINGLE_DICE_DIR, exist_ok=True)
     os.makedirs(MULTIPLE_DICE_DIR, exist_ok=True)
+    os.makedirs(SIMULATION_DIR, exist_ok=True)
 
 def get_file_path(dice_name, num_dice=1):
     """Get the file path for a given dice name and number of dice"""
@@ -22,7 +26,20 @@ def get_file_path(dice_name, num_dice=1):
     else:
         directory = MULTIPLE_DICE_DIR
         
-    return os.path.join(directory, f"{safe_name}.txt")
+    return os.path.join(directory, f"{safe_name}.{FILE_EXTENSION}")
+
+def get_simulation_file_path(dice_name, num_dice, faces, num_rolls):
+    """
+    Get the file path for a simulation with the given parameters.
+    Format: {num_dice}dice_{faces}faces_{num_rolls}rolls_{name}.dicegraph
+    """
+    # Remove any invalid characters for filenames
+    safe_name = "".join(c for c in dice_name if c.isalnum() or c in " _-").strip()
+    safe_name = safe_name.replace(" ", "_")
+    
+    # Create formatted filename with parameters as requested
+    filename = f"{num_dice}dice_{faces}faces_{num_rolls}rolls_{safe_name}.{FILE_EXTENSION}"
+    return os.path.join(SIMULATION_DIR, filename)
 
 def log_single_roll(file_path, value):
     """Log a single dice roll to the specified file"""
@@ -65,5 +82,60 @@ def get_available_dice_sets(directory):
     if not os.path.exists(directory):
         return []
     
-    files = [f for f in os.listdir(directory) if f.endswith('.txt')]
+    files = [f for f in os.listdir(directory) if f.endswith(f'.{FILE_EXTENSION}')]
     return [os.path.splitext(f)[0] for f in files]
+
+def get_available_simulations():
+    """Get a list of available simulation files"""
+    if not os.path.exists(SIMULATION_DIR):
+        return []
+    
+    files = [f for f in os.listdir(SIMULATION_DIR) if f.endswith(f'.{FILE_EXTENSION}')]
+    
+    # Parse simulation filenames to get information
+    simulations = []
+    for file in files:
+        name = os.path.splitext(file)[0]
+        parts = name.split('_')
+        
+        if len(parts) >= 4:
+            try:
+                num_dice = int(parts[0].replace('dice', ''))
+                faces = int(parts[1].replace('faces', ''))
+                num_rolls = int(parts[2].replace('rolls', ''))
+                sim_name = '_'.join(parts[3:])
+                
+                simulations.append({
+                    'filename': file,
+                    'name': sim_name,
+                    'num_dice': num_dice,
+                    'faces': faces,
+                    'num_rolls': num_rolls,
+                    'full_path': os.path.join(SIMULATION_DIR, file)
+                })
+            except (ValueError, IndexError):
+                # Skip files that don't match the expected format
+                pass
+                
+    return simulations
+
+def parse_simulation_filename(filename):
+    """Parse a simulation filename to extract parameters"""
+    try:
+        # Remove extension
+        name = os.path.splitext(filename)[0]
+        parts = name.split('_')
+        
+        num_dice = int(parts[0].replace('dice', ''))
+        faces = int(parts[1].replace('faces', ''))
+        num_rolls = int(parts[2].replace('rolls', ''))
+        sim_name = '_'.join(parts[3:])
+        
+        return {
+            'name': sim_name,
+            'num_dice': num_dice,
+            'faces': faces,
+            'num_rolls': num_rolls
+        }
+    except (ValueError, IndexError):
+        return None

@@ -1,7 +1,10 @@
 # Application-specific files
-MultipleDiceResults
-SingleDiceResults
-SimulationResults
+MultipleDiceResults/*
+!MultipleDiceResults/
+SingleDiceResults/*
+!SingleDiceResults/
+SimulationResults/*
+!SimulationResults/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,8 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
-import sv_ttk  # Add Sun Valley TTK theme import
+import sv_ttk  # Sun Valley TTK theme
+import os
 
 from gui import DiceTrackerApp
+from file_utils import ensure_directories, SINGLE_DICE_DIR, MULTIPLE_DICE_DIR, SIMULATION_DIR
 
 def setup_styles():
     """Setup ttk styles"""

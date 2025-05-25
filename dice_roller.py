@@ -1,78 +1,59 @@
 """
-Main GUI implementation for the DiceGraph application.
+Dice roller implementation for the DiceGraph application.
+Handles the dice rolling tab functionality.
 """
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from collections import Counter
 import os
 
 from dice_manager import DiceManager
-from file_utils import ensure_directories
+from file_utils import (
+    get_file_path, log_single_roll, log_multiple_rolls,
+    read_single_rolls, read_multiple_rolls, reset_file,
+    get_available_dice_sets, SINGLE_DICE_DIR, MULTIPLE_DICE_DIR
+)
 import user_preferences as prefs
-import sv_ttk
+from ui_components import SetSelectionDialog
 
-from dice_roller import DiceRollerTab
-from dice_simulator import DiceSimulatorTab
-from preferences_tab import PreferencesTab
-
-class DiceTrackerApp:
-    """Main application class for Dice Tracker"""
+class DiceRollerTab:
+    """Class to manage the dice roller tab in the application"""
     
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Dice Roll Tracker")
+    def __init__(self, parent, app_instance):
+        """
+        Initialize the dice roller tab.
         
-        # Load preferences
-        preferences = prefs.load_preferences()
-        
-        # Set window size from preferences
-        window_width = preferences.get('window_width', 800)
-        window_height = preferences.get('window_height', 600)
-        self.root.geometry(f"{window_width}x{window_height}")
-        
-        # Set theme from preferences
-        dark_mode = preferences.get('dark_mode', False)
-        sv_ttk.set_theme("dark" if dark_mode else "light")
-        
-        # Ensure directories exist
-        ensure_directories()
-        
-        # Initialize dice manager
-        self.dice_manager = DiceManager()
+        Args:
+            parent: The parent frame
+            app_instance: The main application instance
+        """
+        self.parent = parent
+        self.app = app_instance
+        self.dice_manager = app_instance.dice_manager
         
         # UI variables
-        self.num_dice = tk.IntVar(value=1)
-        self.dice_faces = tk.IntVar(value=preferences.get('default_faces', 6))
-        self.dice_name = tk.StringVar(value="Default")
-        self.status_var = tk.StringVar(value="Ready to roll!")
-        self.total_var = tk.StringVar(value="")
+        self.num_dice = app_instance.num_dice
+        self.dice_faces = app_instance.dice_faces
+        self.dice_name = app_instance.dice_name
+        self.status_var = app_instance.status_var
+        self.total_var = app_instance.total_var
+        
+        # UI components
+        self.canvas = None
+        self.button_vars = {}
+        self.percent_vars = {}
+        self.dice_buttons = []
+        
+        # Setup the UI
+        self.setup_ui()
         
     def setup_ui(self):
-        """Setup the main UI components"""
-        # Main notebook (tabbed interface)
-        notebook = ttk.Notebook(self.root)
-        notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Tab frames
-        roller_frame = ttk.Frame(notebook)
-        simulator_frame = ttk.Frame(notebook)
-        preferences_frame = ttk.Frame(notebook)
-        
-        notebook.add(roller_frame, text="Dice Roller")
-        notebook.add(simulator_frame, text="Dice Simulator")
-        notebook.add(preferences_frame, text="Preferences")
-        self.setup_preferences_tab(preferences_frame)
-        
-        # Setup the roller tab
-        self.setup_roller_tab(roller_frame)
-        
-        # Setup the simulator tab
-        self.setup_simulator_tab(simulator_frame)
-    
-    def setup_roller_tab(self, parent):
-        """Setup the dice roller tab"""
+        """Setup the roller tab UI"""
         # Top frame for configuration
-        top_frame = ttk.Frame(parent)
+        top_frame = ttk.Frame(self.parent)
         top_frame.pack(fill=tk.X, padx=10, pady=10)
         
         # Dice configuration
@@ -93,7 +74,7 @@ class DiceTrackerApp:
         self.faces_spin = ttk.Spinbox(faces_frame, from_=2, to=100, width=5, 
                                       textvariable=self.dice_faces)
         self.faces_spin.pack(side=tk.LEFT, padx=5)
-        self.faces_spin.set("6")
+        self.faces_spin.set(str(prefs.get_preference('default_faces', 6)))
         
         # Dice name
         name_frame = ttk.Frame(config_frame)
@@ -121,70 +102,18 @@ class DiceTrackerApp:
         ttk.Label(status_frame, textvariable=self.total_var, font=("Arial", 10, "bold")).pack(pady=5)
         
         # Graph frame
-        graph_frame = ttk.LabelFrame(parent, text="Dice Roll Distribution")
+        graph_frame = ttk.LabelFrame(self.parent, text="Dice Roll Distribution")
         graph_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         self.graph_container = ttk.Frame(graph_frame)
         self.graph_container.pack(fill=tk.BOTH, expand=True)
         
         # Dice buttons frame
-        self.dice_buttons_frame = ttk.LabelFrame(parent, text="Roll Dice")
+        self.dice_buttons_frame = ttk.LabelFrame(self.parent, text="Roll Dice")
         self.dice_buttons_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         
         # Initial configuration
         self.apply_config()
-    
-    def setup_simulator_tab(self, parent):
-        """Setup the dice simulator tab"""
-        # Simulation configuration
-        config_frame = ttk.LabelFrame(parent, text="Simulation Configuration")
-        config_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        # Number of dice
-        dice_frame = ttk.Frame(config_frame)
-        dice_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(dice_frame, text="Number of dice:").pack(side=tk.LEFT, padx=5)
-        self.sim_num_dice = tk.IntVar(value=1)
-        ttk.Spinbox(dice_frame, from_=1, to=20, width=5, 
-                    textvariable=self.sim_num_dice).pack(side=tk.LEFT, padx=5)
-        
-        # Number of faces
-        faces_frame = ttk.Frame(config_frame)
-        faces_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(faces_frame, text="Number of faces:").pack(side=tk.LEFT, padx=5)
-        self.sim_faces = tk.IntVar(value=self.dice_faces.get())
-        # Use Spinbox for faces instead of dropdown
-        faces_spin = ttk.Spinbox(faces_frame, from_=2, to=100, width=5, textvariable=self.sim_faces)
-        faces_spin.pack(side=tk.LEFT, padx=5)
-        faces_spin.set("6")
-        
-        # Number of rolls
-        rolls_frame = ttk.Frame(config_frame)
-        rolls_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(rolls_frame, text="Number of rolls:").pack(side=tk.LEFT, padx=5)
-        self.sim_num_rolls = tk.IntVar(value=30)
-        ttk.Spinbox(rolls_frame, from_=1, to=1000, width=5, 
-                    textvariable=self.sim_num_rolls).pack(side=tk.LEFT, padx=5)
-        
-        # Dice set name
-        name_frame = ttk.Frame(config_frame)
-        name_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(name_frame, text="Dice Set Name:").pack(side=tk.LEFT, padx=5)
-        self.sim_name = tk.StringVar(value="Simulation")
-        ttk.Entry(name_frame, textvariable=self.sim_name, width=20).pack(side=tk.LEFT, padx=5)
-        
-        # Run simulation button
-        button_frame = ttk.Frame(config_frame)
-        button_frame.pack(fill=tk.X, pady=5)
-        ttk.Button(button_frame, text="Run Simulation", 
-                   command=self.run_simulation).pack(padx=5)
-        
-        # Graph frame
-        self.sim_graph_frame = ttk.LabelFrame(parent, text="Simulation Results")
-        self.sim_graph_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        self.sim_graph_container = ttk.Frame(self.sim_graph_frame)
-        self.sim_graph_container.pack(fill=tk.BOTH, expand=True)
     
     def apply_config(self):
         """Apply the current dice configuration"""
@@ -319,56 +248,13 @@ class DiceTrackerApp:
         
         if not sets:
             messagebox.showwarning("Load Set", "No saved dice sets available.")
+            return
         
         # Create selection dialog
-        dialog = SetSelectionDialog(self.root, "Select Dice Set", sets)
+        dialog = SetSelectionDialog(self.parent.master, "Select Dice Set", sets)
         if dialog.result:
             self.dice_name.set(dialog.result)
             self.apply_config()
-    
-    def setup_preferences_tab(self, parent):
-        """Setup the preferences tab"""
-        frame = ttk.LabelFrame(parent, text="General Preferences")
-        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        # Default number of faces
-        pf_frame = ttk.Frame(frame)
-        pf_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(pf_frame, text="Default number of faces:").pack(side=tk.LEFT, padx=5)
-        self.pref_default_faces = tk.IntVar(value=self.dice_faces.get())
-        default_faces_spin = ttk.Spinbox(pf_frame, from_=2, to=100, width=5, textvariable=self.pref_default_faces, command=self.on_pref_faces_change)
-        default_faces_spin.pack(side=tk.LEFT, padx=5)
-        # Dark mode toggle
-        dm_frame = ttk.Frame(frame)
-        dm_frame.pack(fill=tk.X, pady=5)
-        self.pref_dark_mode = tk.BooleanVar(value=False)
-        ttk.Checkbutton(dm_frame, text="Dark Mode", variable=self.pref_dark_mode, command=self.on_pref_dark_mode_toggle).pack(side=tk.LEFT, padx=5)
-        # Clear all data button
-        ttk.Button(frame, text="Clear All Data", command=self.clear_all_data, style='Accent.TButton').pack(pady=10)
-    
-    def on_pref_faces_change(self):
-        """Update default faces in roller and simulator"""
-        value = self.pref_default_faces.get()
-        self.dice_faces.set(value)
-        self.sim_faces.set(value)
-    
-    def on_pref_dark_mode_toggle(self):
-        """Toggle dark mode theme"""
-        sv_ttk.set_theme("dark" if self.pref_dark_mode.get() else "light")
-    
-    def clear_all_data(self):
-        """Clear all saved dice data"""
-        if messagebox.askyesno("Confirm Clear", "Are you sure you want to clear all data? This cannot be undone."):
-            # Reset each file in both directories
-            for directory in [SINGLE_DICE_DIR, MULTIPLE_DICE_DIR]:
-                for fname in get_available_dice_sets(directory):
-                    file_path = os.path.join(directory, f"{fname}.txt")
-                    reset_file(file_path)
-            messagebox.showinfo("Data Cleared", "All dice data has been cleared.")
-            # Refresh graphs
-            self.show_graph()
-            # Clear simulation results
-            for widget in self.sim_graph_container.winfo_children():
-                widget.destroy()
     
     def show_graph(self):
         """Show the dice roll distribution graph"""
@@ -377,12 +263,21 @@ class DiceTrackerApp:
         faces = self.dice_manager.current_dice_faces
         file_path = get_file_path(name, num_dice)
         
+        # Check if dark mode is enabled
+        dark_mode = prefs.get_preference('dark_mode', False)
+        
+        # Colors based on dark mode
+        bg_color = '#303030' if dark_mode else 'white'
+        text_color = 'white' if dark_mode else 'black'
+        bar_color = '#5599ff' if dark_mode else 'skyblue'
+        
         # Clear existing graph
         for widget in self.graph_container.winfo_children():
             widget.destroy()
         
         # Create figure
         fig = plt.Figure(figsize=(8, 4), dpi=100)
+        fig.patch.set_facecolor(bg_color)
         
         if num_dice == 1:
             # Single die graph
@@ -394,9 +289,10 @@ class DiceTrackerApp:
             
             # Create bar chart for single die
             ax = fig.add_subplot(111)
+            ax.set_facecolor(bg_color)
             face_values = list(range(1, faces + 1))
             values = [counts.get(face, 0) for face in face_values]
-            bars = ax.bar([str(f) for f in face_values], values, color='skyblue')
+            bars = ax.bar([str(f) for f in face_values], values, color=bar_color)
             
             # Add percentage labels on bars
             for i, bar in enumerate(bars):
@@ -404,11 +300,18 @@ class DiceTrackerApp:
                 height = bar.get_height()
                 percent = percentages.get(face, 0.0)
                 ax.text(bar.get_x() + bar.get_width()/2., height + 0.1,
-                        f'{percent:.1f}%', ha='center', va='bottom', rotation=0, fontsize=8)
+                        f'{percent:.1f}%', ha='center', va='bottom', 
+                        rotation=0, fontsize=8, color=text_color)
             
-            ax.set_xlabel('Dice Value')
-            ax.set_ylabel('Count')
-            ax.set_title(f'Dice Roll Distribution - {name}')
+            ax.set_xlabel('Dice Value', color=text_color)
+            ax.set_ylabel('Count', color=text_color)
+            ax.set_title(f'Dice Roll Distribution - {name}', color=text_color)
+            ax.tick_params(axis='x', colors=text_color)
+            ax.tick_params(axis='y', colors=text_color)
+            ax.spines['bottom'].set_color(text_color)
+            ax.spines['top'].set_color(text_color)
+            ax.spines['left'].set_color(text_color)
+            ax.spines['right'].set_color(text_color)
             
         else:
             # Multiple dice graph
@@ -422,36 +325,58 @@ class DiceTrackerApp:
             if not rolls:
                 # Empty graph if no data
                 ax = fig.add_subplot(111)
-                ax.set_title(f"No data for {name}")
+                ax.set_title(f"No data for {name}", color=text_color)
+                ax.set_facecolor(bg_color)
+                ax.tick_params(axis='x', colors=text_color)
+                ax.tick_params(axis='y', colors=text_color)
             else:
                 # Create grid based on number of dice
                 if num_dice <= 3:
                     # For 2-3 dice: overall + individual dice
                     ax1 = fig.add_subplot(1, num_dice + 1, 1)
+                    ax1.set_facecolor(bg_color)
                     face_values = list(range(1, faces + 1))
                     values = [counts.get(face, 0) for face in face_values]
-                    ax1.bar([str(f) for f in face_values], values, color='skyblue')
-                    ax1.set_title('Overall Distribution')
-                    ax1.tick_params(axis='x', rotation=45)
+                    ax1.bar([str(f) for f in face_values], values, color=bar_color)
+                    ax1.set_title('Overall Distribution', color=text_color)
+                    ax1.tick_params(axis='x', rotation=45, colors=text_color)
+                    ax1.tick_params(axis='y', colors=text_color)
+                    ax1.spines['bottom'].set_color(text_color)
+                    ax1.spines['top'].set_color(text_color)
+                    ax1.spines['left'].set_color(text_color)
+                    ax1.spines['right'].set_color(text_color)
                     
                     for i in range(num_dice):
                         ax = fig.add_subplot(1, num_dice + 1, i + 2)
+                        ax.set_facecolor(bg_color)
                         pos_counts = position_stats.get(i, {})
                         pos_values = [pos_counts.get(face, 0) for face in face_values]
                         ax.bar([str(f) for f in face_values], pos_values, color=f'C{i}')
-                        ax.set_title(f'Die {i+1}')
-                        ax.tick_params(axis='x', rotation=45)
+                        ax.set_title(f'Die {i+1}', color=text_color)
+                        ax.tick_params(axis='x', rotation=45, colors=text_color)
+                        ax.tick_params(axis='y', colors=text_color)
+                        ax.spines['bottom'].set_color(text_color)
+                        ax.spines['top'].set_color(text_color)
+                        ax.spines['left'].set_color(text_color)
+                        ax.spines['right'].set_color(text_color)
                 else:
                     # For 4+ dice: just overall + sum
                     ax1 = fig.add_subplot(1, 2, 1)
+                    ax1.set_facecolor(bg_color)
                     face_values = list(range(1, faces + 1))
                     values = [counts.get(face, 0) for face in face_values]
-                    ax1.bar([str(f) for f in face_values], values, color='skyblue')
-                    ax1.set_title('Overall Distribution')
-                    ax1.tick_params(axis='x', rotation=45)
+                    ax1.bar([str(f) for f in face_values], values, color=bar_color)
+                    ax1.set_title('Overall Distribution', color=text_color)
+                    ax1.tick_params(axis='x', rotation=45, colors=text_color)
+                    ax1.tick_params(axis='y', colors=text_color)
+                    ax1.spines['bottom'].set_color(text_color)
+                    ax1.spines['top'].set_color(text_color)
+                    ax1.spines['left'].set_color(text_color)
+                    ax1.spines['right'].set_color(text_color)
                     
                     # Sum distribution
                     ax2 = fig.add_subplot(1, 2, 2)
+                    ax2.set_facecolor(bg_color)
                     sums = [sum(roll) for roll in rolls]
                     min_sum = min(sums) if sums else num_dice
                     max_sum = max(sums) if sums else num_dice * faces
@@ -459,8 +384,13 @@ class DiceTrackerApp:
                     sum_counts = Counter(sums)
                     sum_values = [sum_counts.get(s, 0) for s in sum_range]
                     ax2.bar([str(s) for s in sum_range], sum_values, color='lightgreen')
-                    ax2.set_title('Sum Distribution')
-                    ax2.tick_params(axis='x', rotation=45)
+                    ax2.set_title('Sum Distribution', color=text_color)
+                    ax2.tick_params(axis='x', rotation=45, colors=text_color)
+                    ax2.tick_params(axis='y', colors=text_color)
+                    ax2.spines['bottom'].set_color(text_color)
+                    ax2.spines['top'].set_color(text_color)
+                    ax2.spines['left'].set_color(text_color)
+                    ax2.spines['right'].set_color(text_color)
         
         fig.tight_layout()
         
@@ -468,96 +398,3 @@ class DiceTrackerApp:
         self.canvas = FigureCanvasTkAgg(fig, master=self.graph_container)
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-    
-    def run_simulation(self):
-        """Run a dice simulation"""
-        try:
-            num_dice = self.sim_num_dice.get()
-            faces = self.sim_faces.get()
-            num_rolls = self.sim_num_rolls.get()
-            name = self.sim_name.get().strip()
-            
-            if not name:
-                messagebox.showerror("Error", "Please enter a dice set name")
-                return
-                
-            if num_dice < 1 or num_rolls < 1 or faces < 2:
-                messagebox.showerror("Error", "Invalid simulation parameters")
-                return
-            
-            # Run simulation
-            simulated_rolls = DiceSimulator.simulate_rolls(num_rolls, num_dice, faces)
-            
-            # Save results
-            file_path = get_file_path(name, num_dice)
-            if num_dice == 1:
-                # Flatten for single die rolls
-                for roll in simulated_rolls:
-                    log_single_roll(file_path, roll[0])
-            else:
-                # Multiple dice rolls
-                for roll in simulated_rolls:
-                    log_multiple_rolls(file_path, roll)
-            
-            # Show graph
-            self.show_simulation_results(simulated_rolls, faces)
-            
-        except ValueError as e:
-            messagebox.showerror("Error", str(e))
-    
-    def show_simulation_results(self, rolls, faces):
-        """Show the simulation results"""
-        # Clear existing graph
-        for widget in self.sim_graph_container.winfo_children():
-            widget.destroy()
-        
-        # Create simulation figure
-        fig = DiceSimulator.create_simulation_figure(rolls, faces)
-        
-        # Add title
-        fig.suptitle(f"Simulation Results: {len(rolls)} rolls of {len(rolls[0]) if rolls else 0} {faces}-sided dice")
-        
-        # Add graph to container
-        canvas = FigureCanvasTkAgg(fig, master=self.sim_graph_container)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-
-
-class SetSelectionDialog:
-    """Dialog for selecting a dice set"""
-    
-    def __init__(self, parent, title, options):
-        self.result = None
-        
-        dialog = tk.Toplevel(parent)
-        dialog.title(title)
-        dialog.transient(parent)
-        dialog.geometry("300x200")
-        dialog.resizable(False, False)
-        
-        ttk.Label(dialog, text="Select a dice set:").pack(padx=10, pady=(10, 0))
-        
-        # Listbox with options
-        self.listbox = tk.Listbox(dialog, width=40, height=8)
-        self.listbox.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
-        
-        for option in options:
-            self.listbox.insert(tk.END, option)
-        
-        # Buttons
-        button_frame = ttk.Frame(dialog)
-        button_frame.pack(padx=10, pady=(0, 10), fill=tk.X)
-        
-        ttk.Button(button_frame, text="OK", command=self.on_ok).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(button_frame, text="Cancel", command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
-        
-        # Make dialog modal
-        dialog.grab_set()
-        parent.wait_window(dialog)
-    
-    def on_ok(self):
-        """Handle OK button click"""
-        selection = self.listbox.curselection()
-        if selection:
-            self.result = self.listbox.get(selection[0])
-        self.listbox.master.destroy()
