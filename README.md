@@ -1,9 +1,21 @@
 # DiceGraph
 
 A comprehensive tool for tracking, analyzing, and simulating dice rolls. Use this application to check if your dice are fair, visualize roll distributions, and simulate large numbers of dice rolls.
+You can also conduct deep statistical analysis on dice roll results to determine dice fairness.
 
-| ![](assets/DiceGraph-Screenshot-1) | ![](assets/DiceGraph-Screenshot-2.png) |
-| ---------------------------------- | -------------------------------------- |
+[![Anahat's Website](https://img.shields.io/badge/Developer_Website-AnahatMudgal.com-blue)](https://AnahatMudgal.com)
+
+## Languages and Libraries
+
+![Python](https://img.shields.io/badge/-Python-05122A?style=flat-square&logo=python)
+![Tkinter](https://img.shields.io/badge/-Tkinter-05122A?style=flat-square&logo=python)
+![Matplotlib](https://img.shields.io/badge/-Matplotlib-05122A?style=flat-square&logo=python)
+![NumPy](https://img.shields.io/badge/-NumPy-05122A?style=flat-square&logo=numpy)
+![SciPy](https://img.shields.io/badge/-SciPy-05122A?style=flat-square&logo=scipy)
+
+| ![](assets/DiceGraph-Screenshot-1.png) |
+| -------------------------------------- |
+| ![](assets/DiceGraph-Screenshot-2.png) |
 
 ## Features
 
