@@ -99,7 +99,7 @@ def update_button_counts():
         percent = (count / total * 100) if total > 0 else 0.0
         percent_vars[val].set(f"{percent:.1f}%")
 
-reset_btn = tk.Button(root, text="Reset", width=8, height=2, font=("Arial", 12), command=reset_rolls, bg='red', fg='white')
+reset_btn = tk.Button(root, text="Reset", width=8, height=2, font=("Arial", 12), command=reset_rolls, bg='red', fg='black')
 reset_btn.pack(pady=(10,0))
 
 status_label = tk.Label(root, textvariable=status_var, font=("Arial", 12))

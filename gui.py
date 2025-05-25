@@ -1,9 +1,10 @@
-import tkinter as tk
+import tkinter as tk  
+import sv_ttk  
+import os
 from tkinter import ttk, messagebox, simpledialog
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from collections import Counter
-import os
 
 from dice_manager import DiceManager
 from file_utils import (
@@ -52,9 +53,12 @@ class DiceTrackerApp:
         # Tab frames
         roller_frame = ttk.Frame(notebook)
         simulator_frame = ttk.Frame(notebook)
+        preferences_frame = ttk.Frame(notebook)
         
         notebook.add(roller_frame, text="Dice Roller")
         notebook.add(simulator_frame, text="Dice Simulator")
+        notebook.add(preferences_frame, text="Preferences")
+        self.setup_preferences_tab(preferences_frame)
         
         # Setup the roller tab
         self.setup_roller_tab(roller_frame)
@@ -83,11 +87,10 @@ class DiceTrackerApp:
         faces_frame = ttk.Frame(config_frame)
         faces_frame.pack(fill=tk.X, pady=5)
         ttk.Label(faces_frame, text="Number of faces:").pack(side=tk.LEFT, padx=5)
-        faces_values = [3, 4, 6, 8, 10, 12, 20, 100]
-        faces_cb = ttk.Combobox(faces_frame, values=faces_values, width=5, 
-                               textvariable=self.dice_faces)
-        faces_cb.pack(side=tk.LEFT, padx=5)
-        faces_cb.set("6")
+        self.faces_spin = ttk.Spinbox(faces_frame, from_=2, to=100, width=5, 
+                                      textvariable=self.dice_faces)
+        self.faces_spin.pack(side=tk.LEFT, padx=5)
+        self.faces_spin.set("6")
         
         # Dice name
         name_frame = ttk.Frame(config_frame)
@@ -146,12 +149,11 @@ class DiceTrackerApp:
         faces_frame = ttk.Frame(config_frame)
         faces_frame.pack(fill=tk.X, pady=5)
         ttk.Label(faces_frame, text="Number of faces:").pack(side=tk.LEFT, padx=5)
-        self.sim_faces = tk.IntVar(value=6)
-        faces_values = [3, 4, 6, 8, 10, 12, 20, 100]
-        faces_cb = ttk.Combobox(faces_frame, values=faces_values, width=5, 
-                               textvariable=self.sim_faces)
-        faces_cb.pack(side=tk.LEFT, padx=5)
-        faces_cb.set("6")
+        self.sim_faces = tk.IntVar(value=self.dice_faces.get())
+        # Use Spinbox for faces instead of dropdown
+        faces_spin = ttk.Spinbox(faces_frame, from_=2, to=100, width=5, textvariable=self.sim_faces)
+        faces_spin.pack(side=tk.LEFT, padx=5)
+        faces_spin.set("6")
         
         # Number of rolls
         rolls_frame = ttk.Frame(config_frame)
@@ -313,14 +315,57 @@ class DiceTrackerApp:
         sets = get_available_dice_sets(directory)
         
         if not sets:
-            messagebox.showinfo("Info", f"No saved dice sets found for {num_dice} {'die' if num_dice == 1 else 'dice'}")
-            return
+            messagebox.showwarning("Load Set", "No saved dice sets available.")
         
         # Create selection dialog
         dialog = SetSelectionDialog(self.root, "Select Dice Set", sets)
         if dialog.result:
             self.dice_name.set(dialog.result)
             self.apply_config()
+    
+    def setup_preferences_tab(self, parent):
+        """Setup the preferences tab"""
+        frame = ttk.LabelFrame(parent, text="General Preferences")
+        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Default number of faces
+        pf_frame = ttk.Frame(frame)
+        pf_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(pf_frame, text="Default number of faces:").pack(side=tk.LEFT, padx=5)
+        self.pref_default_faces = tk.IntVar(value=self.dice_faces.get())
+        default_faces_spin = ttk.Spinbox(pf_frame, from_=2, to=100, width=5, textvariable=self.pref_default_faces, command=self.on_pref_faces_change)
+        default_faces_spin.pack(side=tk.LEFT, padx=5)
+        # Dark mode toggle
+        dm_frame = ttk.Frame(frame)
+        dm_frame.pack(fill=tk.X, pady=5)
+        self.pref_dark_mode = tk.BooleanVar(value=False)
+        ttk.Checkbutton(dm_frame, text="Dark Mode", variable=self.pref_dark_mode, command=self.on_pref_dark_mode_toggle).pack(side=tk.LEFT, padx=5)
+        # Clear all data button
+        ttk.Button(frame, text="Clear All Data", command=self.clear_all_data, style='Accent.TButton').pack(pady=10)
+    
+    def on_pref_faces_change(self):
+        """Update default faces in roller and simulator"""
+        value = self.pref_default_faces.get()
+        self.dice_faces.set(value)
+        self.sim_faces.set(value)
+    
+    def on_pref_dark_mode_toggle(self):
+        """Toggle dark mode theme"""
+        sv_ttk.set_theme("dark" if self.pref_dark_mode.get() else "light")
+    
+    def clear_all_data(self):
+        """Clear all saved dice data"""
+        if messagebox.askyesno("Confirm Clear", "Are you sure you want to clear all data? This cannot be undone."):
+            # Reset each file in both directories
+            for directory in [SINGLE_DICE_DIR, MULTIPLE_DICE_DIR]:
+                for fname in get_available_dice_sets(directory):
+                    file_path = os.path.join(directory, f"{fname}.txt")
+                    reset_file(file_path)
+            messagebox.showinfo("Data Cleared", "All dice data has been cleared.")
+            # Refresh graphs
+            self.show_graph()
+            # Clear simulation results
+            for widget in self.sim_graph_container.winfo_children():
+                widget.destroy()
     
     def show_graph(self):
         """Show the dice roll distribution graph"""
