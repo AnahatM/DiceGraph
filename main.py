@@ -16,7 +16,7 @@ def main():
     root = tk.Tk()
     sv_ttk.set_theme("dark")  # Set default theme to light using Sun Valley theme
     root.title("Dice Tracker")
-    root.minsize(800, 600)
+    root.minsize(1200, 800)
     
     # Setup styles
     setup_styles()
