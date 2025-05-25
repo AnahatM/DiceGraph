@@ -16,7 +16,7 @@ from file_utils import (
 )
 from simulation import DiceSimulator
 import user_preferences as prefs
-from ui_components import ConfirmationDialog, SetSelectionDialog, StatsDialog
+from ui_components import ConfirmationDialog, SetSelectionDialog, StatsDialog, SumDistributionWindow
 
 class DiceSimulatorTab:
     """Class to manage the dice simulator tab in the application"""
@@ -95,10 +95,13 @@ class DiceSimulatorTab:
         # Reset button
         ttk.Button(button_frame, text="Reset", style='Accent.TButton',
                   command=self.reset_simulation).pack(side=tk.LEFT, padx=5)
-        
-        # Statistics button
+          # Statistics button
         ttk.Button(button_frame, text="Show Statistics", 
                   command=self.show_statistics).pack(side=tk.RIGHT, padx=5)
+        
+        # Sum Distribution button
+        ttk.Button(button_frame, text="Sum Distribution", 
+                  command=self.show_sum_distribution).pack(side=tk.RIGHT, padx=5)
         
         # Graph frame
         self.sim_graph_frame = ttk.LabelFrame(self.parent, text="Simulation Results")
@@ -235,6 +238,33 @@ class DiceSimulatorTab:
             
         # Show statistics dialog
         StatsDialog(self.parent.master, "Dice Statistics Analysis", self.last_fairness_stats)
+    
+    def show_sum_distribution(self):
+        """Show detailed sum distribution in a popup window"""
+        if not self.last_simulation:
+            messagebox.showwarning("Sum Distribution", "No simulation data available. Run or load a simulation first.")
+            return
+        
+        # Get current settings
+        name = self.sim_name.get()
+        num_dice = self.sim_num_dice.get()
+        
+        # Don't show sum distribution for single die
+        if num_dice == 1:
+            messagebox.showinfo("Sum Distribution", 
+                              "Sum distribution is only available for multiple dice.")
+            return
+        
+        # Check if dark mode is enabled
+        dark_mode = prefs.get_preference('dark_mode', False)
+        
+        # Create and show the sum distribution window
+        SumDistributionWindow(
+            self.parent.master, 
+            f"Simulation Sum Distribution - {name}", 
+            self.last_simulation, 
+            dark_mode
+        )
     
     def show_simulation_results(self, rolls, faces):
         """Show the simulation results"""

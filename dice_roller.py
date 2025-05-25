@@ -17,7 +17,7 @@ from file_utils import (
     get_available_dice_sets, SINGLE_DICE_DIR, MULTIPLE_DICE_DIR
 )
 import user_preferences as prefs
-from ui_components import SetSelectionDialog, StatsDialog
+from ui_components import SetSelectionDialog, StatsDialog, SumDistributionWindow
 from statistics_utils import get_dice_fairness
 
 class DiceRollerTab:
@@ -91,8 +91,7 @@ class DiceRollerTab:
         button_frame.pack(fill=tk.X, pady=5)
         ttk.Button(button_frame, text="Apply", command=self.apply_config).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Load Set", command=self.load_dice_set).pack(side=tk.LEFT, padx=5)
-        
-        # Status and data management section
+          # Status and data management section
         status_frame = ttk.LabelFrame(top_frame, text="Data Management")
         status_frame.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=5)
         
@@ -110,6 +109,10 @@ class DiceRollerTab:
         # Statistics button
         ttk.Button(data_buttons_frame, text="Show Statistics", 
                   command=self.show_statistics).pack(side=tk.LEFT, pady=5, padx=5)
+                  
+        # Sum distribution button
+        ttk.Button(data_buttons_frame, text="Sum Distribution", 
+                  command=self.show_sum_distribution).pack(side=tk.LEFT, pady=5, padx=5)
         
         # Total rolls
         ttk.Label(status_frame, textvariable=self.total_var, font=("Arial", 10, "bold")).pack(pady=5)
@@ -260,6 +263,37 @@ class DiceRollerTab:
             
         # Show statistics dialog
         StatsDialog(self.parent.master, "Dice Statistics Analysis", self.last_fairness_stats)
+    
+    def show_sum_distribution(self):
+        """Show detailed sum distribution in a popup window"""
+        name = self.dice_manager.current_dice_set
+        num_dice = self.dice_manager.current_num_dice
+        file_path = get_file_path(name, num_dice)
+        
+        # Don't show sum distribution for single die
+        if num_dice == 1:
+            messagebox.showinfo("Sum Distribution", 
+                              "Sum distribution is only available for multiple dice rolls.")
+            return
+        
+        # Read rolls from file
+        rolls = read_multiple_rolls(file_path)
+        
+        if not rolls:
+            messagebox.showwarning("Sum Distribution", 
+                                "No dice roll data available. Roll some dice first.")
+            return
+        
+        # Check if dark mode is enabled
+        dark_mode = prefs.get_preference('dark_mode', False)
+        
+        # Create and show the sum distribution window
+        SumDistributionWindow(
+            self.parent.master, 
+            f"Sum Distribution - {name}", 
+            rolls, 
+            dark_mode
+        )
     
     def load_dice_set(self):
         """Load a dice set from saved data"""
