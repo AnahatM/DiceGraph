@@ -9,7 +9,7 @@ import os
 
 import user_preferences as prefs
 from file_utils import (
-    reset_file, get_available_dice_sets, 
+    reset_file, delete_file, get_available_dice_sets, 
     SINGLE_DICE_DIR, MULTIPLE_DICE_DIR, SIMULATION_DIR, FILE_EXTENSION
 )
 import sv_ttk
@@ -169,7 +169,7 @@ class PreferencesTab:
                 files = [f for f in os.listdir(directory) if f.endswith(f'.{FILE_EXTENSION}')]
                 for file in files:
                     file_path = os.path.join(directory, file)
-                    reset_file(file_path)
+                    delete_file(file_path)
                 messagebox.showinfo("Data Cleared", f"All {description} data has been cleared.")
             
             # Refresh graphs if needed
@@ -191,7 +191,7 @@ class PreferencesTab:
                     files = [f for f in os.listdir(directory) if f.endswith(f'.{FILE_EXTENSION}')]
                     for file in files:
                         file_path = os.path.join(directory, file)
-                        reset_file(file_path)
+                        delete_file(file_path)
             
             messagebox.showinfo("Data Cleared", "All dice data has been cleared.")
             
